@@ -6,9 +6,9 @@ SERPER_API_KEY = st.secrets["SERPER_API_KEY"]
 TOGETHER_API_KEY = st.secrets["TOGETHER_API_KEY"]
 
 # Configura la API de Serper
-serper_url = "https://google.serper.dev/search"
+serper_url = "https://api.serper.io/v1/search"
 serper_headers = {
-    "X-API-KEY": SERPER_API_KEY,
+    "Authorization": f"Bearer {SERPER_API_KEY}",
     "Content-Type": "application/json"
 }
 
@@ -21,8 +21,12 @@ together_headers = {
 
 # Función para buscar tendencias actuales con la API de Serper
 def buscar_tendencias(query):
-    data = {"q": query}
-    response = requests.post(serper_url, headers=serper_headers, json=data)
+    params = {
+        "q": query,
+        "num": 10,
+        "sort": "date"
+    }
+    response = requests.get(serper_url, headers=serper_headers, params=params)
     return response.json()
 
 # Función para generar un análisis o informe con la API de Together
@@ -48,10 +52,7 @@ query = st.text_input("Ingrese una palabra clave o frase para buscar tendencias"
 if st.button("Buscar"):
     tendencias = buscar_tendencias(query)
     texto = ""
-    if "results" in tendencias:
-        for tendencia in tendencias["results"]:
-            texto += tendencia.get("title", "") + "\n" + tendencia.get("description", "") + "\n\n"
-    else:
-        texto = "No se encontraron resultados"
+    for tendencia in tendencias["results"]:
+        texto += tendencia["title"] + "\n" + tendencia["description"] + "\n\n"
     analisis = generar_analisis(texto)
     st.write(analisis)
