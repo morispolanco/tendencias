@@ -1,121 +1,56 @@
 import streamlit as st
 import requests
 import json
-from io import BytesIO
-from docx import Document
-from docx.enum.style import WD_STYLE_TYPE
-from docx.shared import Pt
 
-# Set page configuration
-st.set_page_config(page_title="Análisis de Tendencias Actuales", page_icon="📊")
+# Configuración de las claves de API
+SERPER_API_KEY = st.secrets["SERPER_API_KEY"]
+TOGETHER_API_KEY = st.secrets["TOGETHER_API_KEY"]
 
-# Titles and Main Column
-st.title("Análisis de Tendencias Actuales")
+def search_trends(query):
+    url = "https://google.serper.dev/search"
+    payload = json.dumps({
+        "q": query
+    })
+    headers = {
+        'X-API-KEY': SERPER_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    response = requests.request("POST", url, headers=headers, data=payload)
+    return response.json()
 
-# Describe app functionality
-st.write("""
-    Esta aplicación busca información sobre tendencias actuales utilizando la API de Serper y genera un análisis o 
-    informe sobre dichas tendencias utilizando la API de Together. Puedes ingresar una palabra clave para buscar 
-    tendencias específicas.
-""")
+def analyze_trends(trends_data):
+    url = "https://api.together.xyz/inference"
+    payload = json.dumps({
+        "model": "togethercomputer/llama-2-70b-chat",
+        "prompt": f"Analiza las siguientes tendencias y genera un informe conciso:\n\n{trends_data}\n\nInforme:",
+        "max_tokens": 500,
+        "temperature": 0.7
+    })
+    headers = {
+        'Authorization': f'Bearer {TOGETHER_API_KEY}',
+        'Content-Type': 'application/json'
+    }
+    response = requests.request("POST", url, headers=headers, data=payload)
+    return response.json()['output']['choices'][0]['text']
 
-# Input for keyword
-keyword = st.text_input("Ingrese una palabra clave para buscar tendencias:")
+def main():
+    st.title("Análisis de Tendencias Actuales")
 
-if st.button("Buscar Tendencias y Generar Informe"):
-    if keyword:
-        with st.spinner("Buscando tendencias actuales..."):
-            # Fetch trends using Serper API
-            serper_api_key = st.secrets["SERPER_API_KEY"]
-            serper_url = "https://api.serper.dev/search"
-            headers = {
-                "Content-Type": "application/json",
-                "X-API-KEY": serper_api_key
-            }
-            payload = json.dumps({
-                "q": keyword,
-                "gl": "us",
-            })
-            response = requests.post(serper_url, headers=headers, data=payload)
+    # Input para la búsqueda de tendencias
+    search_query = st.text_input("Ingrese un tema para buscar tendencias:", "Tendencias tecnológicas 2024")
 
-            # Debug: Display raw JSON response from Serper API
-            st.write("Raw JSON response from Serper API:")
-            st.json(response.json())
+    if st.button("Buscar y Analizar"):
+        with st.spinner("Buscando tendencias..."):
+            trends_data = search_trends(search_query)
+            
+        st.subheader("Resultados de la búsqueda:")
+        st.json(trends_data)
 
-            trends = response.json()
+        with st.spinner("Analizando tendencias..."):
+            analysis = analyze_trends(json.dumps(trends_data, indent=2))
 
-            trend_titles = []
-            for item in trends.get('organic', []):
-                trend_titles.append(item['title'])
+        st.subheader("Análisis de las tendencias:")
+        st.write(analysis)
 
-            if not trend_titles:
-                st.error("No se encontraron tendencias actuales.")
-            else:
-                st.success("Tendencias encontradas. Generando informe...")
-
-                # Generate analysis report on trends using Together API
-                together_api_key = st.secrets["TOGETHER_API_KEY"]
-                together_url = "https://api.together.xyz/inference"
-                trends_text = "\n".join(f"- {title}" for title in trend_titles)
-                prompt = f"""
-                    Genera un informe detallado sobre las siguientes tendencias actuales relacionadas con la palabra clave '{keyword}':
-
-                    {trends_text}
-
-                    Proporciona un análisis profundo de cada tendencia, incluyendo posibles impactos sociales, económicos y 
-                    tecnológicos.
-                """
-                payload = json.dumps({
-                    "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-                    "prompt": prompt,
-                    "max_tokens": 4096,
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "top_k": 50,
-                    "repetition_penalty": 1.1
-                })
-                headers = {
-                    'Authorization': f'Bearer {together_api_key}',
-                    'Content-Type': 'application/json'
-                }
-                response = requests.post(together_url, headers=headers, data=payload)
-                analysis_text = response.json()['output']['choices'][0]['text'].strip()
-                st.success("Informe generado con éxito.")
-                st.write(analysis_text)
-
-                # Create and download DOCX report
-                if analysis_text:
-                    doc = Document()
-
-                    # Define styles
-                    styles = doc.styles
-                    if 'Sin Sangría' not in styles:
-                        style = styles.add_style('Sin Sangría', WD_STYLE_TYPE.PARAGRAPH)
-                        style.font.name = 'Calibri'
-                        style.font.size = Pt(11)
-                        style.paragraph_format.space_after = Pt(10)
-                        style.paragraph_format.left_indent = Pt(0)
-
-                    doc.add_heading("Informe de Tendencias Actuales", 0)
-                    doc.add_heading("Tendencias Encontradas", level=1)
-
-                    for title in trend_titles:
-                        doc.add_paragraph(f"- {title}", style='Sin Sangría')
-
-                    doc.add_heading("Análisis de Tendencias", level=1)
-                    doc.add_paragraph(analysis_text, style='Sin Sangría')
-
-                    doc.add_paragraph('\nNota: Este informe fue generado por un asistente de IA. Se recomienda revisar y editar el contenido para garantizar su precisión y calidad.', style='Sin Sangría')
-
-                    buffer = BytesIO()
-                    doc.save(buffer)
-                    buffer.seek(0)
-
-                    st.download_button(
-                        label="Descargar informe en DOCX",
-                        data=buffer,
-                        file_name="informe_tendencias_actuales.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-    else:
-        st.warning("Por favor, ingrese una palabra clave para buscar tendencias.")
+if __name__ == "__main__":
+    main()
