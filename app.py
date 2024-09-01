@@ -37,6 +37,11 @@ if st.button("Buscar Tendencias y Generar Informe"):
                 "gl": "us",
             })
             response = requests.post(serper_url, headers=headers, data=payload)
+
+            # Debug: Display raw JSON response from Serper API
+            st.write("Raw JSON response from Serper API:")
+            st.json(response.json())
+
             trends = response.json()
 
             trend_titles = []
