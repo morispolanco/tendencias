@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import json
 
 # Carga las claves API desde los secretos de Streamlit
 SERPER_API_KEY = st.secrets["SERPER_API_KEY"]
@@ -13,7 +14,7 @@ serper_headers = {
 }
 
 # Configura la API de Together
-together_url = "https://api.together.xyz/v1/chat/completions"
+together_url = "https://api.together.ai/v1/generate"
 together_headers = {
     "Authorization": f"Bearer {TOGETHER_API_KEY}",
     "Content-Type": "application/json"
@@ -31,19 +32,13 @@ def buscar_tendencias(query):
 
 # Función para generar un análisis o informe con la API de Together
 def generar_analisis(texto):
-    data = {
-        "model": "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
-        "messages": [],
-        "max_tokens": 2512,
-        "temperature": 0.7,
-        "top_p": 0.7,
-        "top_k": 50,
-        "repetition_penalty": 1,
-        "stop": ["\""],
-        "stream": True
+    payload = {
+        "text": texto,
+        "length": 200,
+        "style": "informal"
     }
-    response = requests.post(together_url, headers=together_headers, json=data)
-    return response.text
+    response = requests.post(together_url, headers=together_headers, json=payload)
+    return response.json()
 
 # Interfaz de usuario
 st.title("Análisis de tendencias actuales")
@@ -55,4 +50,4 @@ if st.button("Buscar"):
     for tendencia in tendencias["results"]:
         texto += tendencia["title"] + "\n" + tendencia["description"] + "\n\n"
     analisis = generar_analisis(texto)
-    st.write(analisis)
+    st.write(analisis["text"])
