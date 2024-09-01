@@ -48,7 +48,10 @@ query = st.text_input("Ingrese una palabra clave o frase para buscar tendencias"
 if st.button("Buscar"):
     tendencias = buscar_tendencias(query)
     texto = ""
-    for tendencia in tendencias["results"]:
-        texto += tendencia["title"] + "\n" + tendencia["description"] + "\n\n"
+    if "results" in tendencias:
+        for tendencia in tendencias["results"]:
+            texto += tendencia.get("title", "") + "\n" + tendencia.get("description", "") + "\n\n"
+    else:
+        texto = "No se encontraron resultados"
     analisis = generar_analisis(texto)
     st.write(analisis)
